@@ -107,12 +107,12 @@ def generate_email_message(rss_title, rss_items):
 	for item in rss_items:
 		title, link, published_raw, published, summary, content_hash = item
 		body = body + """
-			<a href=""{link}""><h3>{title}</h3></a>
+			<a href="{link}"><h3>{title}</h3></a>
 			<b>Publication date: {pubdate}</b>
 			<br/>
 			{summary}
 			<br/>
-			<a href=""{link2}"">Read More</a>
+			<a href="{link2}">Read More</a>
 			<br/>
 			""".format(title=title, link=link, pubdate=str(published), summary=summary, link2=link) 
 	body = body + "</body></html>"
