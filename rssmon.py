@@ -31,21 +31,16 @@ if toaddr is None or toaddr == "" or fromaddr is None or fromaddr == "" or sende
 
 
 def get_feed_configs(): 
-	ret = dict()
+	ret = []
 
 	with open(config, 'r') as f: 
 		lines = f.readlines()
 
 	for line in lines: 
 		items = line.rstrip().split(',')
-		if len(items) < 2: 
-			print("Incorrect line: " + line)
-			continue
-		key = int(items[0])
-		rss = items[1]
-		keywords = items[2:]
-
-		ret[key] = {"rss": rss, "keywords": keywords}
+		rss = items[0]
+		keywords = items[1:]
+		ret.append({"rss": rss, "keywords": keywords})
 
 	return ret
 
@@ -78,7 +73,15 @@ def get_new_feed_entries(url, keywords, db_dict):
 			published = datetime.datetime(published.tm_year, published.tm_mon, published.tm_mday, published.tm_hour, published.tm_min, published.tm_sec) \
 						if published is not None \
 						else datetime.datetime(1970, 1, 1, 0, 0, 0)
-			
+		
+			if 'content' in entry: 
+				content = "" 
+				for citem in entry['content']: 
+					if 'value' in citem: 
+						content = content + "" + citem['value']
+				if content != "": 
+					summary = content
+
 			if title == "" and summary == "": 
 				continue
 
@@ -142,8 +145,7 @@ with SqliteDict(db) as db_dict:
 	messages = []
 	hashes = []
 
-	for cfg_key in cfgs.keys(): 
-		cfg = cfgs[cfg_key]
+	for cfg in cfgs: 
 		items, title = get_new_feed_entries(cfg['rss'], cfg['keywords'], db_dict)
 		if items is None or len(items) == 0: 
 			continue
