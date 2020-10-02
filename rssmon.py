@@ -140,7 +140,7 @@ def generate_email_message(rss_title, rss_link, rss_items, idx):
 
 		txt = "<table border='0'>"
 		if img_link != "":
-			txt = txt + "<tr><td><img width=\"200\" src=\"" + img_link + "\"/></td><td style=\"vertical-align:top\">" 
+			txt = txt + "<tr><td><img width=\"100\" src=\"" + img_link + "\"/></td><td style=\"vertical-align:top\">" 
 		else: 
 			txt = txt + "<tr><td style=\"vertical-align:top\">"
 
