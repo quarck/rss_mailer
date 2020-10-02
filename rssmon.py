@@ -16,7 +16,6 @@ import time
 import sys 
 import re 
 
-send_messages = True 
 hn_min_points = 100 
 
 if len(sys.argv) != 4: 
@@ -160,12 +159,6 @@ def generate_email_message(rss_title, rss_link, rss_items, idx):
 
 	body = body + "</body></html>"
 
-	if not send_messages: 
-		name = "/var/www/html/test/" + str(idx) + ".html"
-		print(name)
-		with open(name, "w") as f: 
-			f.write(body)
-
 	msg.attach(MIMEText(body, 'html')) 
 
 	return msg.as_string()
@@ -202,10 +195,9 @@ with SqliteDict(db) as db_dict:
 		if msg is not None and msg != "": 
 			messages.append(msg)
 			for item in items: 
-				hashes.append(item[5])
+				hashes.append(item[6])
 
-	if send_messages: 
-		if len(messages) > 0 and send_email_messages(messages):
-			for h in hashes: 
-				db_dict[h] = 1
-			db_dict.commit()
+	if len(messages) > 0 and send_email_messages(messages):
+		for h in hashes: 
+			db_dict[h] = 1
+		db_dict.commit()
