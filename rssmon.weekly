@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+
+/home/rssmon/rss/rss_mailer/rssmon.py /home/rssmon/email.conf /home/rssmon/list_weekly.txt /home/rssmon/db_weekly.sqlite
+

@@ -13,10 +13,20 @@ from email.mime.base import MIMEBase
 from email import encoders 
 
 import time
+import sys 
+import re 
 
-config="/home/rssmon/list.txt"
-db = "/home/rssmon/db.sqlite"
-email_config="/home/rssmon/email.conf"
+send_messages = True 
+hn_min_points = 100 
+
+if len(sys.argv) != 4: 
+	print("Error: invalid usage")
+	print("Usage: ./rssmon.py <email_config> <rss_list> <rss_db>")
+	exit(-1)
+
+config = sys.argv[2] # "/home/rssmon/list.txt"
+db = sys.argv[3] # "/home/rssmon/db.sqlite"
+email_config = sys.argv[1] # "/home/rssmon/email.conf"
 
 with open(email_config, 'r') as f: 
 	config_line = f.read().rstrip()
@@ -82,19 +92,35 @@ def get_new_feed_entries(url, keywords, db_dict):
 				if content != "": 
 					summary = content
 
+			img_link = ''
+			if 'links' in entry: 
+				for litem in entry['links']: 
+					if 'rel' not in litem or 'href' not in litem: 
+						continue
+					if litem['rel'] == 'enclosure':
+						img_link = litem['href']
+						break
+
 			if title == "" and summary == "": 
 				continue
+
+			if 'https://hnrss.org/' in url.lower():
+				m = re.search('Points:\\s*(\\d+)', summary)
+				if m:
+					points = int(m.group(1))
+					if points < hn_min_points: 
+						continue
 
 			if any_in(keywords, title) or any_in(keywords, summary):
 				content_hash = hashlib.sha224((title + "-" + summary + "-" + link + "-" + published_raw).encode('utf-8')).hexdigest()
 
 				if content_hash not in db_dict:
-					ret.append([title, link, published_raw, published, summary, content_hash])
+					ret.append([title, link, published_raw, published, summary, img_link, content_hash])
 
 	return (ret, d['feed']['title'])
 
 
-def generate_email_message(rss_title, rss_items):
+def generate_email_message(rss_title, rss_link, rss_items, idx):
 	ret = None 
 
 	msg = MIMEMultipart("alternative") 
@@ -105,20 +131,40 @@ def generate_email_message(rss_title, rss_items):
 	else: 
 		msg['Subject'] = "rssmon: {0}: {1} new items".format(rss_title, len(rss_items))
 
-	body = "<html><header></header><body><h2>New feed entries for{}</h2>".format(rss_title)
+	body = "<html><header></header><body><h2>New feed entries for " + \
+			rss_title + " <a href=\"" + rss_link + "\" style=\"text-decoration: none\">[feed]</a></h2>\n" 
 
 	for item in rss_items:
-		title, link, published_raw, published, summary, content_hash = item
-		body = body + """
-			<a href="{link}"><h3>{title}</h3></a>
-			<b>Publication date: {pubdate}</b>
-			<br/>
-			{summary}
-			<br/>
-			<a href="{link2}">Read More</a>
-			<br/>
-			""".format(title=title, link=link, pubdate=str(published), summary=summary, link2=link) 
+		title, link, published_raw, published, summary, img_link, content_hash = item
+
+
+		txt = "<table border='0'>"
+		if img_link != "":
+			txt = txt + "<tr><td><img width=\"200\" src=\"" + img_link + "\"/></td><td style=\"vertical-align:top\">" 
+		else: 
+			txt = txt + "<tr><td style=\"vertical-align:top\">"
+
+		date_text = ""
+		if published > datetime.datetime(1970, 1, 2, 0, 0, 0): 
+			date_text = published.strftime("%d/%m/%Y: ")
+
+
+		txt = txt + "<h3>{0}{1} <a href=\"{2}\" style=\"text-decoration: none\">[Read More]</a><br/></h3>".format(date_text, title, link)
+
+		if summary != "": 
+			txt = txt + summary
+
+		txt = txt + "</td></tr></table><br/>"
+		body = body + txt
+
+
 	body = body + "</body></html>"
+
+	if not send_messages: 
+		name = "/var/www/html/test/" + str(idx) + ".html"
+		print(name)
+		with open(name, "w") as f: 
+			f.write(body)
 
 	msg.attach(MIMEText(body, 'html')) 
 
@@ -138,6 +184,7 @@ def send_email_messages(messages):
 
 	return True
 
+
 cfgs = get_feed_configs()
 
 with SqliteDict(db) as db_dict:
@@ -145,17 +192,20 @@ with SqliteDict(db) as db_dict:
 	messages = []
 	hashes = []
 
+	i = 0
 	for cfg in cfgs: 
 		items, title = get_new_feed_entries(cfg['rss'], cfg['keywords'], db_dict)
 		if items is None or len(items) == 0: 
 			continue
-		msg = generate_email_message(title, items)
+		msg = generate_email_message(title, cfg['rss'], items, i)
+		i = i + 1
 		if msg is not None and msg != "": 
 			messages.append(msg)
 			for item in items: 
 				hashes.append(item[5])
 
-	if len(messages) > 0 and send_email_messages(messages):
-		for h in hashes: 
-			db_dict[h] = 1
-		db_dict.commit()
+	if send_messages: 
+		if len(messages) > 0 and send_email_messages(messages):
+			for h in hashes: 
+				db_dict[h] = 1
+			db_dict.commit()
